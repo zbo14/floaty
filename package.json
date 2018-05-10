@@ -1,0 +1,19 @@
+{
+  "name": "floaty",
+  "version": "1.0.0",
+  "description": "tryna SWIM",
+  "main": "index.js",
+  "scripts": {
+    "doc": "./node_modules/.bin/jsdoc ./README.md ./lib && open ./out/index.html",
+    "test": "nyc mocha --reporter spec"
+  },
+  "author": "Zachary Balder",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint-config-starry": "^7.0.0",
+    "eslint-plugin-starry": "^5.0.0",
+    "jsdoc": "^3.5.5",
+    "mocha": "^5.1.1",
+    "nyc": "^11.7.1"
+  }
+}
