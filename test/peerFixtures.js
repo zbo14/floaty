@@ -93,7 +93,7 @@ exports.pingFail = ( peer, socket ) => {
         updates: []
       });
     });
-    peer.once( 'ping-req', done );
+    peer.once( 'target', done );
     peer.ping( 0, [], socket );
   });
 };

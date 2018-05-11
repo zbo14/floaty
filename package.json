@@ -1,7 +1,6 @@
 {
   "name": "floaty",
   "version": "1.0.0",
-  "description": "tryna SWIM",
   "main": "index.js",
   "scripts": {
     "doc": "./node_modules/.bin/jsdoc ./README.md ./lib && open ./out/index.html",

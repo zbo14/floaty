@@ -1,15 +1,28 @@
 'use strict';
 
-const assert                = require('assert');
-const { it }                = require('mocha');
-const Server                = require('../lib/server');
-const { newUpdate, sameId } = require('../lib/util');
+const assert    = require('assert');
+const { it }    = require('mocha');
+const Server    = require('../lib/server');
+const sameId    = require('../lib/id');
+const newUpdate = require('../lib/update');
 
 const servers = [];
 
+exports.initServer = i => {
+  it( 'initializes a server', () => {
+    servers[ i ].init( servers );
+  });
+};
+
+exports.teardownServer = i => {
+  it( 'tears down a server', () => {
+    servers[ i ].teardown();
+  });
+};
+
 exports.startServer = i => {
   it( 'starts a server', () => {
-    servers[ i ].start( servers );
+    servers[ i ].start();
   });
 };
 
@@ -71,9 +84,9 @@ exports.sendInvalidMessage = i => {
   });
 };
 
-exports.setupServers = () => {
-  it( 'sets up servers', () => {
-    servers.forEach( server => server.setup( servers ) );
+exports.initServers = () => {
+  it( 'initializes servers', () => {
+    servers.forEach( server => server.init( servers ) );
   });
 };
 
@@ -113,7 +126,7 @@ exports.suspectDown = i => {
       assert.equal( peer.status, 'suspect' );
       peer.once( 'down', () => {
         assert.equal( peer.status, 'down' );
-        otherServer.setup( servers );
+        otherServer.init( servers );
         done();
       });
       server.ping( peer );
@@ -126,7 +139,7 @@ exports.ping = i => {
   it( 'pings a random peer', done => {
     const server = servers[ i ];
     const peer = server.randomPeer();
-    peer.once( 'ack', done );
+    peer.once( 'ack', () => done() );
     server.ping( peer );
   });
 };
@@ -139,7 +152,7 @@ exports.pingReq = i => {
     while ( sameId( peer, target ) ) {
       target = server.randomPeer();
     }
-    peer.once( 'ack', done );
+    peer.once( 'ack', () => done() );
     server.pingReq( peer, target );
   });
 };
@@ -150,15 +163,28 @@ exports.pingFail = i => {
     const peer = server.randomPeer();
     const otherServer = getServer( peer );
     otherServer.teardown();
-    peer.once( 'ping-req', () => {
-      otherServer.setup( servers );
+    peer.once( 'target', () => {
+      otherServer.init( servers );
       done();
     });
     server.ping( peer );
   });
 };
 
-exports.peerIsDown = i => {
+exports.isAlive = i => {
+  it( 'checks that peer is alive', () => {
+    const server = servers [ i ];
+    let peer;
+    for ( let j = 0; j < servers.length; j++ ) {
+      if ( i !== j ) {
+        peer = servers[ j ].getPeer( server );
+        assert.equal( peer.status, 'alive' );
+      }
+    }
+  });
+};
+
+exports.isDown = i => {
   it( 'checks that peer is down', () => {
     const server = servers [ i ];
     let peer;
@@ -196,7 +222,7 @@ exports.wait = timeout => {
 
 exports.startServers = () => {
   it( 'starts servers', () => {
-    servers.forEach( server => server.start( servers ) );
+    servers.forEach( server => server.start() );
   });
 };
 

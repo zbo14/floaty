@@ -8,8 +8,8 @@ const fixtures         = require('./peerFixtures');
 
 describe( 'peer', () => {
   const server = new EventEmitter();
-  const peer = new Peer({ id: 1, port: 3001, address: 'localhost', server });
-  const target = new Peer({ id: 2, port: 3002, address: 'localhost', server });
+  const peer = new Peer({ id: 1, port: 3001, address: 'localhost' }, server );
+  const target = new Peer({ id: 2, port: 3002, address: 'localhost' }, server );
   const socket = createSocket('udp4');
   socket.bind( peer.port, peer.address );
   socket.on( 'error', err => {
