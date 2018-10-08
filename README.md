@@ -4,7 +4,7 @@
 
 `npm i`
 
-## Docs
+## Documentation
 
 `npm run doc`
 
