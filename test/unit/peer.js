@@ -4,7 +4,7 @@
 
 const assert = require('assert')
 const lolex = require('lolex')
-const Peer = require('../lib/peer')
+const Peer = require('../../lib/peer')
 const server = require('./fixtures/server')
 const newTarget = require('./fixtures/target')
 
@@ -45,29 +45,29 @@ describe('peer', () => {
     server.removeAllListeners()
   })
 
-  describe('#send()', () => {
-    let send
-
-    before(() => {
-      send = server.socket.send
-      server.socket.send = (msg, port, addr, cb) => {
-        cb(new Error('whoops'))
-      }
-    })
-
-    after(() => {
-      server.socket.send = send
-    })
-
-    it('mocks send error on server socket', async () => {
-      try {
-        await peer.send({ foo: 'bar' })
-        assert.ok(false, 'should have thrown error')
-      } catch (err) {
-        assert.strictEqual(err.message, 'whoops')
-      }
-    })
-  })
+  // describe('#send()', () => {
+  //   let send
+  //
+  //   before(() => {
+  //     send = server.socket.send
+  //     server.socket.send = (msg, port, addr, cb) => {
+  //       cb(new Error('whoops'))
+  //     }
+  //   })
+  //
+  //   after(() => {
+  //     server.socket.send = send
+  //   })
+  //
+  //   it('mocks send error on server socket', async () => {
+  //     try {
+  //       await peer.send({ foo: 'bar' })
+  //       assert.ok(false, 'should have thrown error')
+  //     } catch (err) {
+  //       assert.strictEqual(err.message, 'whoops')
+  //     }
+  //   })
+  // })
 
   describe('#ping()', () => {
     it('mocks ping that doesn\'t receive ack', async () => {
@@ -80,7 +80,7 @@ describe('peer', () => {
         updates
       })
 
-      clock.tick(1e3)
+      clock.tick(2e3)
 
       await promise
     })
@@ -165,19 +165,77 @@ describe('peer', () => {
         updates
       })
 
-      clock.tick(1e3)
+      clock.tick(2e3)
 
       await promise
     })
   })
 
+  describe('#alive()', () => {
+    describe('#status:suspect', () => {
+      beforeEach(() => {
+        peer.status = 'suspect'
+      })
+
+      it('updates suspect peer when it hears ack', () => {
+        peer.emit('ack')
+        assert.strictEqual(peer.status, 'alive')
+      })
+
+      it('updates suspect peer when it hears ping', () => {
+        peer.emit('ping')
+        assert.strictEqual(peer.status, 'alive')
+      })
+
+      it('updates suspect peer when it hears ping-req', () => {
+        peer.emit('ping-req')
+        assert.strictEqual(peer.status, 'alive')
+      })
+    })
+
+    describe('#status:down', () => {
+      beforeEach(() => {
+        peer.status = 'down'
+      })
+
+      it('updates down peer when it hears ack', () => {
+        peer.emit('ack')
+        assert.strictEqual(peer.status, 'alive')
+      })
+
+      it('updates down peer when it hears ping', () => {
+        peer.emit('ping')
+        assert.strictEqual(peer.status, 'alive')
+      })
+
+      it('updates down peer when it hears ping-req', () => {
+        peer.emit('ping-req')
+        assert.strictEqual(peer.status, 'alive')
+      })
+    })
+  })
+
   describe('#suspect()', () => {
+    it('fails to suspect already suspect peer', () => {
+      peer.status = 'suspect'
+      peer.suspect()
+      clock.tick(2e3)
+      assert.strictEqual(peer.status, 'suspect')
+    })
+
+    it('fails to suspect down peer', () => {
+      peer.status = 'down'
+      peer.suspect()
+      clock.tick(2e3)
+      assert.strictEqual(peer.status, 'down')
+    })
+
     it('suspects and then marks peer down', async () => {
       const promise1 = new Promise(resolve => peer.once('suspect', resolve))
       const promise2 = new Promise(resolve => peer.once('down', resolve))
       peer.suspect()
       await promise1
-      clock.tick(1e3)
+      clock.tick(2e3)
       await promise2
       assert.strictEqual(peer.status, 'down')
     })

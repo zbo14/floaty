@@ -1,0 +1,22 @@
+[
+  {
+    "id": 100,
+    "port": 10000,
+    "address": "node0"
+  },
+  {
+    "id": 101,
+    "port": 10001,
+    "address": "node1"
+  },
+  {
+    "id": 102,
+    "port": 10002,
+    "address": "node2"
+  },
+  {
+    "id": 103,
+    "port": 10003,
+    "address": "node3"
+  }
+]

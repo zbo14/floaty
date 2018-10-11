@@ -1,10 +1,11 @@
 {
   "name": "floaty",
   "version": "0.0.0",
-  "main": "index.js",
+  "main": "main.js",
   "scripts": {
     "doc": "jsdoc README.md lib && open out/index.html",
-    "test": "NODE_ENV=test nyc mocha --exit"
+    "unit-tests": "NODE_ENV=test nyc mocha test/unit/*.js --exit",
+    "integration-test": "NODE_ENV=test nyc mocha test/integration --exit"
   },
   "author": "Zachary Balder",
   "license": "MIT",

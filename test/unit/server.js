@@ -7,7 +7,7 @@ const lolex = require('lolex')
 const newPeers = require('./fixtures/peers')
 const newSocket = require('./fixtures/socket')
 const newUpdates = require('./fixtures/updates')
-const Server = require('../lib/server')
+const Server = require('../../lib/server')
 
 const id = 100
 const port = 11000
@@ -126,7 +126,7 @@ describe('server', () => {
         port: 3000
       })
 
-      assert.strictEqual(result, false)
+      assert.strictEqual(result, undefined)
     })
 
     it('fails to add peer it already has', () => {
@@ -136,7 +136,38 @@ describe('server', () => {
         port
       })
 
-      assert.strictEqual(result, false)
+      assert.strictEqual(result, undefined)
+    })
+  })
+
+  describe('#state()', () => {
+    it('checks initial state', () => {
+      const actual = server.state
+      const expected = [
+        {
+          id: 0,
+          sequence: 1,
+          status: 'alive'
+        },
+        ...server.peerArr.map(peer => ({
+          id: peer.id,
+          sequence: 0,
+          status: 'alive'
+        }))
+      ]
+      assert.deepStrictEqual(actual, expected)
+    })
+
+    it('checks state after peer status update', () => {
+      peer(id).suspect()
+
+      const state = server.state.find(peer => peer.id === id)
+
+      assert.deepStrictEqual(state, {
+        id,
+        sequence: 0,
+        status: 'suspect'
+      })
     })
   })
 
@@ -402,8 +433,7 @@ describe('server', () => {
 
     describe('#handleMessage(\'ack\')', () => {
       it('handles ack for peer', done => {
-        peer(id).once('ack', ack => {
-          assert.strictEqual(ack, true)
+        peer(id).once('ack', () => {
           assert.strictEqual(peer(id).status, 'alive')
           done()
         })
@@ -431,22 +461,22 @@ describe('server', () => {
         })
       })
 
-      it('handles ping-req that doesn\'t receive ack', async () => {
-        const promise = new Promise(resolve => {
-          peer(id + 1).once('ack', resolve)
+      it('handles ping-req that doesn\'t receive ack', done => {
+        peer(id + 1).once('ack', () => {
+          done(new Error('shouldn\'t have gotten here'))
         })
 
-        await server.handleMessage({
+        server.handleMessage({
           command: 'ping-req',
           sender_id: id,
           target_id: id + 1,
           updates: []
         })
-
-        clock.tick(1e3)
-
-        const result = await promise
-        assert.strictEqual(result, false)
+          .then(result => {
+            clock.tick(2e3)
+            done()
+          })
+          .catch(done)
       })
 
       it('handles ping-req that receives ack', async () => {
@@ -524,7 +554,7 @@ describe('server', () => {
         server.runProtocolPeriod = resolve
       })
 
-      clock.tick(1e3)
+      clock.tick(2e3)
 
       await promise
     })
