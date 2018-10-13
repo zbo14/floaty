@@ -5,7 +5,7 @@
   "scripts": {
     "doc": "jsdoc README.md lib && open out/index.html",
     "unit-tests": "NODE_ENV=test nyc mocha test/unit/*.js --exit",
-    "integration-test": "NODE_ENV=test nyc mocha test/integration --exit"
+    "integration-test": "node scripts/init.js && NODE_ENV=test nyc mocha test/integration --exit"
   },
   "author": "Zachary Balder",
   "license": "MIT",

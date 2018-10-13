@@ -7,6 +7,7 @@ const lolex = require('lolex')
 const newPeers = require('./fixtures/peers')
 const newSocket = require('./fixtures/socket')
 const newUpdates = require('./fixtures/updates')
+const Peer = require('../../lib/peer')
 const Server = require('../../lib/server')
 
 const id = 100
@@ -41,6 +42,16 @@ describe('server', () => {
   afterEach(async () => {
     clock.uninstall()
     await server.teardown()
+  })
+
+  describe('#constructor()', () => {
+    it('sets up server with no peers', async () => {
+      server.teardown()
+      await server.setup()
+
+      assert.deepStrictEqual(server.peerArr, [])
+      assert.deepStrictEqual(server.peerMap, new Map())
+    })
   })
 
   describe('#socket', () => {
@@ -362,17 +373,26 @@ describe('server', () => {
   })
 
   describe('#handleMessage()', () => {
-    it('handles message with unrecognized sender', done => {
-      server.once('peer-not-found', id => {
-        assert.strictEqual(id, 404)
-        done()
-      })
+    it('adds peer it doesn\'t have', () => {
+      server.handleMessage(
+        {
+          command: 'ping',
+          sender_id: 404,
+          updates: []
+        },
+        {
+          address: '1.2.3.4',
+          port: 5678
+        }
+      )
 
-      server.handleMessage({
-        command: 'ping',
-        sender_id: 404,
-        updates: []
-      })
+      const peer = server.peerMap.get(404)
+
+      assert(peer instanceof Peer)
+
+      assert.strictEqual(peer.id, 404)
+      assert.strictEqual(peer.address, '1.2.3.4')
+      assert.strictEqual(peer.port, 5678)
     })
 
     it('handles message with unrecognized command', done => {
@@ -495,6 +515,60 @@ describe('server', () => {
 
         await promise
       })
+    })
+
+    describe('#handleMessage(\'state\')', () => {
+      it('handles state message', done => {
+        peer(id).once('state', state => {
+          assert.deepStrictEqual(state, { foo: 'bar' })
+          done()
+        })
+
+        server.handleMessage({
+          command: 'state',
+          state: { foo: 'bar' },
+          sender_id: id,
+          updates: []
+        })
+      })
+    })
+
+    describe('#handleMessage(\'state-req\')', () => {
+      it('handles state-req message', done => {
+        const state = server.state
+
+        peer(id).send = msg => {
+          assert.deepStrictEqual(msg, {
+            command: 'state',
+            state
+          })
+          done()
+        }
+
+        server.handleMessage({
+          command: 'state-req',
+          sender_id: id,
+          updates: []
+        })
+      })
+    })
+  })
+
+  describe('#requestState()', () => {
+    it('mocks state request to peer', async () => {
+      const promise = server.requestState(id)
+      peer(id).emit('state', { foo: 'bar' })
+      const result = await promise
+      assert.deepStrictEqual(result, { foo: 'bar' })
+    })
+
+    it('fails to make state request to peer it doesn\'t know', async () => {
+      try {
+        await server.requestState(404)
+        assert.ok(false, 'should have thrown error')
+      } catch (err) {
+        assert.strictEqual(err.message, 'Could not find peer with id: 404')
+      }
     })
   })
 

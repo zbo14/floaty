@@ -45,30 +45,6 @@ describe('peer', () => {
     server.removeAllListeners()
   })
 
-  // describe('#send()', () => {
-  //   let send
-  //
-  //   before(() => {
-  //     send = server.socket.send
-  //     server.socket.send = (msg, port, addr, cb) => {
-  //       cb(new Error('whoops'))
-  //     }
-  //   })
-  //
-  //   after(() => {
-  //     server.socket.send = send
-  //   })
-  //
-  //   it('mocks send error on server socket', async () => {
-  //     try {
-  //       await peer.send({ foo: 'bar' })
-  //       assert.ok(false, 'should have thrown error')
-  //     } catch (err) {
-  //       assert.strictEqual(err.message, 'whoops')
-  //     }
-  //   })
-  // })
-
   describe('#ping()', () => {
     it('mocks ping that doesn\'t receive ack', async () => {
       const promise = new Promise(resolve => peer.once('target', resolve))
@@ -191,6 +167,16 @@ describe('peer', () => {
         peer.emit('ping-req')
         assert.strictEqual(peer.status, 'alive')
       })
+
+      it('updates suspect peer when it hears state', () => {
+        peer.emit('state')
+        assert.strictEqual(peer.status, 'alive')
+      })
+
+      it('updates suspect peer when it hears state-req', () => {
+        peer.emit('state-req')
+        assert.strictEqual(peer.status, 'alive')
+      })
     })
 
     describe('#status:down', () => {
@@ -210,6 +196,16 @@ describe('peer', () => {
 
       it('updates down peer when it hears ping-req', () => {
         peer.emit('ping-req')
+        assert.strictEqual(peer.status, 'alive')
+      })
+
+      it('updates down peer when it hears state', () => {
+        peer.emit('state')
+        assert.strictEqual(peer.status, 'alive')
+      })
+
+      it('updates down peer when it hears state-req', () => {
+        peer.emit('state-req')
         assert.strictEqual(peer.status, 'alive')
       })
     })

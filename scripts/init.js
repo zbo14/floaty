@@ -14,19 +14,21 @@ const nodesPath = path.resolve(
 
 const writeFile = util.promisify(fs.writeFile)
 
-const node = i => `
+const node = (port, i) => `
   node${i}:
     container_name: node${i}
     init: true
     build: .
     command: node main.js ${i}
+    ports:
+      - ${port + i}:${port + i}/udp
 `
 
 let dockerCompose = `version: '2.2'
 
 services:`
 
-module.exports = async config => {
+const init = async config => {
   const nodes = []
 
   for (let i = 0; i < config.numNodes; i++) {
@@ -36,7 +38,7 @@ module.exports = async config => {
       address: `node${i}`
     })
 
-    dockerCompose += node(i)
+    dockerCompose += node(config.port, i)
   }
 
   await Promise.all([
@@ -53,3 +55,7 @@ module.exports = async config => {
     )
   ])
 }
+
+init({ numNodes: 4, id: 100, port: 10000 })
+
+module.exports = init
