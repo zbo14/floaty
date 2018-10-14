@@ -18,7 +18,7 @@ let clock
 let peers
 let server
 
-const peer = id => server.peerMap.get(id)
+const getPeer = id => server.peerMap.get(id)
 
 describe('server', () => {
   beforeEach(async () => {
@@ -31,7 +31,9 @@ describe('server', () => {
       port: 3000
     })
 
-    await server.setup(peers)
+    server.init(peers)
+
+    await server.openSocket()
 
     server.nextIndex = 0
     server.status = 'alive'
@@ -41,13 +43,12 @@ describe('server', () => {
 
   afterEach(async () => {
     clock.uninstall()
-    await server.teardown()
+    await server.closeSocket()
   })
 
   describe('#constructor()', () => {
     it('sets up server with no peers', async () => {
-      server.teardown()
-      await server.setup()
+      await server.init()
 
       assert.deepStrictEqual(server.peerArr, [])
       assert.deepStrictEqual(server.peerMap, new Map())
@@ -57,7 +58,7 @@ describe('server', () => {
   describe('#socket', () => {
     describe('#bind()', () => {
       it('mocks bind error', async () => {
-        server.teardown()
+        server.closeSocket()
         const socket = newSocket()
         socket.bind = (port, addr, cb) => cb(new Error('whoops'))
 
@@ -170,7 +171,8 @@ describe('server', () => {
     })
 
     it('checks state after peer status update', () => {
-      peer(id).suspect()
+      const peer = getPeer(id)
+      peer.suspect()
 
       const state = server.state.find(peer => peer.id === id)
 
@@ -184,11 +186,14 @@ describe('server', () => {
 
   describe('#addUpdate()', () => {
     it('adds alive update for peer', () => {
-      peer(id).emit('alive')
+      const peer = getPeer(id)
+      peer.emit('alive')
 
       assert.deepStrictEqual(server.updates, [
         {
+          address: peer.address,
           id,
+          port: peer.port,
           status: 'alive',
           count: 0,
           sequence: 0
@@ -197,11 +202,14 @@ describe('server', () => {
     })
 
     it('adds suspect update for peer', () => {
-      peer(id).emit('suspect')
+      const peer = getPeer(id)
+      peer.emit('suspect')
 
       assert.deepStrictEqual(server.updates, [
         {
+          address: peer.address,
           id,
+          port: peer.port,
           status: 'suspect',
           count: 0,
           sequence: 0
@@ -209,13 +217,16 @@ describe('server', () => {
       ])
     })
 
-    it('adds down update for peer', () => {
-      peer(id).emit('down')
+    it('adds faulty update for peer', () => {
+      const peer = getPeer(id)
+      peer.emit('faulty')
 
       assert.deepStrictEqual(server.updates, [
         {
+          address: peer.address,
           id,
-          status: 'down',
+          port: peer.port,
+          status: 'faulty',
           count: 0,
           sequence: 0
         }
@@ -272,7 +283,7 @@ describe('server', () => {
         },
         {
           id: 104,
-          status: 'down',
+          status: 'faulty',
           sequence: 2,
           count: limit - 1
         },
@@ -311,7 +322,7 @@ describe('server', () => {
         },
         {
           id: 104,
-          status: 'down',
+          status: 'faulty',
           sequence: 2,
           count: limit
         }
@@ -335,18 +346,26 @@ describe('server', () => {
   })
 
   describe('#handleUpdate()', () => {
-    it('handles update for unrecognized peer', done => {
-      server.once('peer-not-found', id => {
-        assert.strictEqual(id, 404)
-        done()
+    it('handles update for unrecognized peer', async () => {
+      assert.strictEqual(getPeer(404), undefined)
+
+      await server.handleUpdate({
+        address: 'localhost',
+        id: 404,
+        port: 9000,
+        status: 'alive',
+        sequence: 1
       })
 
-      server.handleUpdate({ id: 404, status: 'suspect', sequence: Infinity })
+      const { address, id, port } = getPeer(404)
+      assert.strictEqual(address, 'localhost')
+      assert.strictEqual(id, 404)
+      assert.strictEqual(port, 9000)
     })
 
-    it('handles down update for peer', done => {
-      peer(id).once('down', done)
-      server.handleUpdate({ id, status: 'down', sequence: 1 })
+    it('handles faulty update for peer', done => {
+      getPeer(id).once('faulty', done)
+      server.handleUpdate({ id, status: 'faulty', sequence: 1 })
     })
 
     it('handles alive update for server', () => {
@@ -363,8 +382,10 @@ describe('server', () => {
       server.handleUpdate({ id: 0, status: 'suspect', sequence: 1 })
       assert.deepStrictEqual(server.updates, [
         {
+          address: server.address,
           count: 0,
           id: 0,
+          port: server.port,
           status: 'alive',
           sequence: 2
         }
@@ -411,7 +432,7 @@ describe('server', () => {
     describe('#handleMessage(\'ping\')', () => {
       it('handles a ping', async () => {
         const promise = new Promise(resolve => {
-          peer(id).ack = resolve
+          getPeer(id).ack = resolve
         })
 
         await Promise.all([
@@ -425,8 +446,10 @@ describe('server', () => {
       })
 
       it('handles a ping message with updates', async () => {
+        const peer = getPeer(id)
+
         const promise = new Promise(resolve => {
-          peer(id).ack = resolve
+          peer.ack = resolve
         })
 
         await Promise.all([
@@ -443,7 +466,9 @@ describe('server', () => {
         ])
 
         assert.deepStrictEqual(server.updates, [{
+          address: peer.address,
           id,
+          port: peer.port,
           count: 0,
           sequence: 100,
           status: 'suspect'
@@ -453,8 +478,8 @@ describe('server', () => {
 
     describe('#handleMessage(\'ack\')', () => {
       it('handles ack for peer', done => {
-        peer(id).once('ack', () => {
-          assert.strictEqual(peer(id).status, 'alive')
+        getPeer(id).once('ack', () => {
+          assert.strictEqual(getPeer(id).status, 'alive')
           done()
         })
 
@@ -467,22 +492,27 @@ describe('server', () => {
     })
 
     describe('#handleMessage(\'ping-req\')', () => {
-      it('handles ping-req with unrecognized target', done => {
-        server.once('peer-not-found', id => {
-          assert.strictEqual(id, 404)
-          done()
-        })
+      it('handles ping-req and adds target', async () => {
+        assert.strictEqual(getPeer(404), undefined)
 
-        server.handleMessage({
+        await server.handleMessage({
           command: 'ping-req',
           sender_id: id,
+          target_address: '127.0.0.1',
           target_id: 404,
+          target_port: 4000,
           updates: []
         })
+
+        const peer = getPeer(404)
+        assert(peer)
+        assert.strictEqual(peer.address, '127.0.0.1')
+        assert.strictEqual(peer.id, 404)
+        assert.strictEqual(peer.port, 4000)
       })
 
       it('handles ping-req that doesn\'t receive ack', done => {
-        peer(id + 1).once('ack', () => {
+        getPeer(id + 1).once('ack', () => {
           done(new Error('shouldn\'t have gotten here'))
         })
 
@@ -501,7 +531,7 @@ describe('server', () => {
 
       it('handles ping-req that receives ack', async () => {
         const promise = new Promise(resolve => {
-          peer(id).ack = resolve
+          getPeer(id).ack = resolve
         })
 
         await server.handleMessage({
@@ -511,7 +541,7 @@ describe('server', () => {
           updates: []
         })
 
-        peer(id + 1).emit('ack', true)
+        getPeer(id + 1).emit('ack', true)
 
         await promise
       })
@@ -519,7 +549,7 @@ describe('server', () => {
 
     describe('#handleMessage(\'state\')', () => {
       it('handles state message', done => {
-        peer(id).once('state', state => {
+        getPeer(id).once('state', state => {
           assert.deepStrictEqual(state, { foo: 'bar' })
           done()
         })
@@ -537,7 +567,7 @@ describe('server', () => {
       it('handles state-req message', done => {
         const state = server.state
 
-        peer(id).send = msg => {
+        getPeer(id).send = msg => {
           assert.deepStrictEqual(msg, {
             command: 'state',
             state
@@ -557,7 +587,7 @@ describe('server', () => {
   describe('#requestState()', () => {
     it('mocks state request to peer', async () => {
       const promise = server.requestState(id)
-      peer(id).emit('state', { foo: 'bar' })
+      getPeer(id).emit('state', { foo: 'bar' })
       const result = await promise
       assert.deepStrictEqual(result, { foo: 'bar' })
     })

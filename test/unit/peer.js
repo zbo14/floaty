@@ -179,32 +179,32 @@ describe('peer', () => {
       })
     })
 
-    describe('#status:down', () => {
+    describe('#status:faulty', () => {
       beforeEach(() => {
-        peer.status = 'down'
+        peer.status = 'faulty'
       })
 
-      it('updates down peer when it hears ack', () => {
+      it('updates faulty peer when it hears ack', () => {
         peer.emit('ack')
         assert.strictEqual(peer.status, 'alive')
       })
 
-      it('updates down peer when it hears ping', () => {
+      it('updates faulty peer when it hears ping', () => {
         peer.emit('ping')
         assert.strictEqual(peer.status, 'alive')
       })
 
-      it('updates down peer when it hears ping-req', () => {
+      it('updates faulty peer when it hears ping-req', () => {
         peer.emit('ping-req')
         assert.strictEqual(peer.status, 'alive')
       })
 
-      it('updates down peer when it hears state', () => {
+      it('updates faulty peer when it hears state', () => {
         peer.emit('state')
         assert.strictEqual(peer.status, 'alive')
       })
 
-      it('updates down peer when it hears state-req', () => {
+      it('updates faulty peer when it hears state-req', () => {
         peer.emit('state-req')
         assert.strictEqual(peer.status, 'alive')
       })
@@ -219,21 +219,21 @@ describe('peer', () => {
       assert.strictEqual(peer.status, 'suspect')
     })
 
-    it('fails to suspect down peer', () => {
-      peer.status = 'down'
+    it('fails to suspect faulty peer', () => {
+      peer.status = 'faulty'
       peer.suspect()
       clock.tick(2e3)
-      assert.strictEqual(peer.status, 'down')
+      assert.strictEqual(peer.status, 'faulty')
     })
 
-    it('suspects and then marks peer down', async () => {
+    it('suspects and then marks peer faulty', async () => {
       const promise1 = new Promise(resolve => peer.once('suspect', resolve))
-      const promise2 = new Promise(resolve => peer.once('down', resolve))
+      const promise2 = new Promise(resolve => peer.once('faulty', resolve))
       peer.suspect()
       await promise1
       clock.tick(2e3)
       await promise2
-      assert.strictEqual(peer.status, 'down')
+      assert.strictEqual(peer.status, 'faulty')
     })
 
     it('suspects and then marks peer alive', async () => {
@@ -311,55 +311,55 @@ describe('peer', () => {
         })
       })
 
-      describe('#handleUpdate(\'down\')', () => {
+      describe('#handleUpdate(\'faulty\')', () => {
         it('handles suspect update with lower sequence number', async () => {
-          const promise = new Promise(resolve => peer.once('down', resolve))
-          peer.handleUpdate({ status: 'down', sequence: 0 })
-          assert.strictEqual(peer.status, 'down')
+          const promise = new Promise(resolve => peer.once('faulty', resolve))
+          peer.handleUpdate({ status: 'faulty', sequence: 0 })
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 1)
           await promise
         })
 
         it('handles alive update with same sequence number', async () => {
-          const promise = new Promise(resolve => peer.once('down', resolve))
-          peer.handleUpdate({ status: 'down', sequence: 1 })
-          assert.strictEqual(peer.status, 'down')
+          const promise = new Promise(resolve => peer.once('faulty', resolve))
+          peer.handleUpdate({ status: 'faulty', sequence: 1 })
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 1)
           await promise
         })
 
         it('handles alive update with higher sequence number', async () => {
-          const promise = new Promise(resolve => peer.once('down', resolve))
-          peer.handleUpdate({ status: 'down', sequence: 2 })
-          assert.strictEqual(peer.status, 'down')
+          const promise = new Promise(resolve => peer.once('faulty', resolve))
+          peer.handleUpdate({ status: 'faulty', sequence: 2 })
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 2)
           await promise
         })
       })
     })
 
-    describe('#status:down', () => {
+    describe('#status:faulty', () => {
       beforeEach(() => {
-        peer.status = 'down'
+        peer.status = 'faulty'
         peer.sequence = 1
       })
 
       describe('#handleUpdate(\'alive\')', () => {
         it('handles alive update with lower sequence number', () => {
           peer.handleUpdate({ status: 'alive', sequence: 0 })
-          assert.strictEqual(peer.status, 'down')
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 1)
         })
 
         it('handles alive update with same sequence number', () => {
           peer.handleUpdate({ status: 'alive', sequence: 1 })
-          assert.strictEqual(peer.status, 'down')
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 1)
         })
 
         it('handles alive update with higher sequence number', () => {
           peer.handleUpdate({ status: 'alive', sequence: 2 })
-          assert.strictEqual(peer.status, 'down')
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 2)
         })
       })
@@ -367,39 +367,39 @@ describe('peer', () => {
       describe('#handleUpdate(\'suspect\')', () => {
         it('handles suspect update with lower sequence number', () => {
           peer.handleUpdate({ status: 'suspect', sequence: 0 })
-          assert.strictEqual(peer.status, 'down')
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 1)
         })
 
         it('handles alive update with same sequence number', () => {
           peer.handleUpdate({ status: 'suspect', sequence: 1 })
-          assert.strictEqual(peer.status, 'down')
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 1)
         })
 
         it('handles alive update with higher sequence number', () => {
           peer.handleUpdate({ status: 'suspect', sequence: 2 })
-          assert.strictEqual(peer.status, 'down')
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 2)
         })
       })
 
-      describe('#handleUpdate(\'down\')', () => {
+      describe('#handleUpdate(\'faulty\')', () => {
         it('handles suspect update with lower sequence number', () => {
-          peer.handleUpdate({ status: 'down', sequence: 0 })
-          assert.strictEqual(peer.status, 'down')
+          peer.handleUpdate({ status: 'faulty', sequence: 0 })
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 1)
         })
 
         it('handles alive update with same sequence number', async () => {
-          peer.handleUpdate({ status: 'down', sequence: 1 })
-          assert.strictEqual(peer.status, 'down')
+          peer.handleUpdate({ status: 'faulty', sequence: 1 })
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 1)
         })
 
         it('handles alive update with higher sequence number', async () => {
-          peer.handleUpdate({ status: 'down', sequence: 2 })
-          assert.strictEqual(peer.status, 'down')
+          peer.handleUpdate({ status: 'faulty', sequence: 2 })
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 2)
         })
       })
@@ -453,27 +453,27 @@ describe('peer', () => {
         })
       })
 
-      describe('#handleUpdate(\'down\')', () => {
+      describe('#handleUpdate(\'faulty\')', () => {
         it('handles suspect update with lower sequence number', async () => {
-          const promise = new Promise(resolve => peer.once('down', resolve))
-          peer.handleUpdate({ status: 'down', sequence: 0 })
-          assert.strictEqual(peer.status, 'down')
+          const promise = new Promise(resolve => peer.once('faulty', resolve))
+          peer.handleUpdate({ status: 'faulty', sequence: 0 })
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 1)
           await promise
         })
 
         it('handles alive update with same sequence number', async () => {
-          const promise = new Promise(resolve => peer.once('down', resolve))
-          peer.handleUpdate({ status: 'down', sequence: 1 })
-          assert.strictEqual(peer.status, 'down')
+          const promise = new Promise(resolve => peer.once('faulty', resolve))
+          peer.handleUpdate({ status: 'faulty', sequence: 1 })
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 1)
           await promise
         })
 
         it('handles alive update with higher sequence number', async () => {
-          const promise = new Promise(resolve => peer.once('down', resolve))
-          peer.handleUpdate({ status: 'down', sequence: 2 })
-          assert.strictEqual(peer.status, 'down')
+          const promise = new Promise(resolve => peer.once('faulty', resolve))
+          peer.handleUpdate({ status: 'faulty', sequence: 2 })
+          assert.strictEqual(peer.status, 'faulty')
           assert.strictEqual(peer.sequence, 2)
           await promise
         })

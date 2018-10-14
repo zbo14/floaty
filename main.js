@@ -12,11 +12,13 @@ const run = async () => {
   server.once('error', async err => {
     console.error(err)
     await server.stop()
-    server.teardown()
+    server.closeSocket()
     process.exit(1)
   })
 
-  await server.setup(nodes)
+  server.init(nodes)
+
+  await server.openSocket()
   await server.start()
 }
 

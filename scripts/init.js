@@ -28,7 +28,7 @@ let dockerCompose = `version: '2.2'
 
 services:`
 
-const init = async config => {
+module.exports = async config => {
   const nodes = []
 
   for (let i = 0; i < config.numNodes; i++) {
@@ -55,7 +55,3 @@ const init = async config => {
     )
   ])
 }
-
-init({ numNodes: 4, id: 100, port: 10000 })
-
-module.exports = init
