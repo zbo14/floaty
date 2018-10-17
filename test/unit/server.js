@@ -18,7 +18,7 @@ let clock
 let peers
 let server
 
-const getPeer = id => server.peerMap.get(id)
+const getPeer = id => server.getPeer(id)
 
 describe('server', () => {
   beforeEach(async () => {
@@ -49,9 +49,7 @@ describe('server', () => {
   describe('#constructor()', () => {
     it('sets up server with no peers', async () => {
       await server.init()
-
-      assert.deepStrictEqual(server.peerArr, [])
-      assert.deepStrictEqual(server.peerMap, new Map())
+      assert.deepStrictEqual(server.peers, [])
     })
   })
 
@@ -112,20 +110,36 @@ describe('server', () => {
     })
   })
 
+  describe('#peersOnline', () => {
+    it('gets online peers', () => {
+      assert.deepStrictEqual(server.peersOnline, server.peers)
+    })
+
+    it('gets online peers when one is suspect', () => {
+      server.peers[0].status = 'suspect'
+      assert.deepStrictEqual(server.peersOnline, server.peers)
+    })
+
+    it('gets online peers when one is faulty', () => {
+      server.peers[0].status = 'faulty'
+      assert.deepStrictEqual(server.peersOnline, server.peers.slice(1))
+    })
+  })
+
   describe('#shufflePeers()', () => {
     it('shuffles peers once', () => {
-      const peersBefore = server.peerArr.slice(0)
+      const peersBefore = server.peers.slice(0)
       server.shufflePeers()
-      const peersAfter = server.peerArr.slice(0)
+      const peersAfter = server.peers.slice(0)
       assert.notDeepStrictEqual(peersAfter, peersBefore)
     })
 
     it('shuffles peers a bunch of times', () => {
-      const peersBefore = server.peerArr.slice(0)
+      const peersBefore = server.peers.slice(0)
       for (let i = 0; i < 5; i++) {
         server.shufflePeers()
       }
-      const peersAfter = server.peerArr.slice(0)
+      const peersAfter = server.peers.slice(0)
       assert.notDeepStrictEqual(peersAfter, peersBefore)
     })
   })
@@ -149,38 +163,6 @@ describe('server', () => {
       })
 
       assert.strictEqual(result, undefined)
-    })
-  })
-
-  describe('#state()', () => {
-    it('checks initial state', () => {
-      const actual = server.state
-      const expected = [
-        {
-          id: 0,
-          sequence: 1,
-          status: 'alive'
-        },
-        ...server.peerArr.map(peer => ({
-          id: peer.id,
-          sequence: 0,
-          status: 'alive'
-        }))
-      ]
-      assert.deepStrictEqual(actual, expected)
-    })
-
-    it('checks state after peer status update', () => {
-      const peer = getPeer(id)
-      peer.suspect()
-
-      const state = server.state.find(peer => peer.id === id)
-
-      assert.deepStrictEqual(state, {
-        id,
-        sequence: 0,
-        status: 'suspect'
-      })
     })
   })
 
@@ -346,7 +328,7 @@ describe('server', () => {
   })
 
   describe('#handleUpdate()', () => {
-    it('handles update for unrecognized peer', async () => {
+    it('handles alive update for unrecognized peer', async () => {
       assert.strictEqual(getPeer(404), undefined)
 
       await server.handleUpdate({
@@ -361,6 +343,34 @@ describe('server', () => {
       assert.strictEqual(address, 'localhost')
       assert.strictEqual(id, 404)
       assert.strictEqual(port, 9000)
+    })
+
+    it('handles suspect update for unrecognized peer', async () => {
+      assert.strictEqual(getPeer(404), undefined)
+
+      await server.handleUpdate({
+        address: 'localhost',
+        id: 404,
+        port: 9000,
+        status: 'suspect',
+        sequence: 1
+      })
+
+      assert.strictEqual(getPeer(404), undefined)
+    })
+
+    it('handles faulty update for unrecognized peer', async () => {
+      assert.strictEqual(getPeer(404), undefined)
+
+      await server.handleUpdate({
+        address: 'localhost',
+        id: 404,
+        port: 9000,
+        status: 'faulty',
+        sequence: 1
+      })
+
+      assert.strictEqual(getPeer(404), undefined)
     })
 
     it('handles faulty update for peer', done => {
@@ -407,7 +417,7 @@ describe('server', () => {
         }
       )
 
-      const peer = server.peerMap.get(404)
+      const peer = getPeer(404)
 
       assert(peer instanceof Peer)
 
@@ -547,54 +557,68 @@ describe('server', () => {
       })
     })
 
-    describe('#handleMessage(\'state\')', () => {
-      it('handles state message', done => {
-        getPeer(id).once('state', state => {
-          assert.deepStrictEqual(state, { foo: 'bar' })
+    describe('#handleMessage(\'event\')', () => {
+      it('handles event message', done => {
+        getPeer(id).once('foobar', result => {
+          assert.strictEqual(result, undefined)
           done()
         })
 
         server.handleMessage({
-          command: 'state',
-          state: { foo: 'bar' },
+          command: 'event',
+          eventName: 'foobar',
           sender_id: id,
           updates: []
         })
       })
     })
 
-    describe('#handleMessage(\'state-req\')', () => {
-      it('handles state-req message', done => {
-        const state = server.state
+    describe('#handleMessage(\'event-req\')', () => {
+      it('handles event-req message', done => {
+        const peer = getPeer(id)
 
-        getPeer(id).send = msg => {
+        peer.send = msg => {
           assert.deepStrictEqual(msg, {
-            command: 'state',
-            state
+            command: 'event',
+            eventName: 'foobar'
           })
           done()
         }
 
         server.handleMessage({
-          command: 'state-req',
+          command: 'event-req',
+          eventName: 'foobar',
           sender_id: id,
           updates: []
         })
+
+        server.emit('foobar')
       })
     })
   })
 
-  describe('#requestState()', () => {
-    it('mocks state request to peer', async () => {
-      const promise = server.requestState(id)
-      getPeer(id).emit('state', { foo: 'bar' })
-      const result = await promise
-      assert.deepStrictEqual(result, { foo: 'bar' })
+  describe('#eventReq()', () => {
+    it('mocks event request to peer', async () => {
+      const promise = server.eventReq(id, 'foobar')
+      getPeer(id).emit('foobar')
+      await promise
     })
 
-    it('fails to make state request to peer it doesn\'t know', async () => {
+    it('mocks event request that times out', async () => {
+      const promise = server.eventReq(id)
+      clock.tick(10e3)
+
       try {
-        await server.requestState(404)
+        await promise
+        assert.ok(false, 'should have thrown error')
+      } catch (err) {
+        assert.strictEqual(err.message, 'Request timed out')
+      }
+    })
+
+    it('fails to make event request to peer it doesn\'t know', async () => {
+      try {
+        await server.eventReq(404)
         assert.ok(false, 'should have thrown error')
       } catch (err) {
         assert.strictEqual(err.message, 'Could not find peer with id: 404')
@@ -603,23 +627,15 @@ describe('server', () => {
   })
 
   describe('#runProtocolPeriod()', () => {
-    it('runs protocol period', async () => {
-      assert.strictEqual(server.nextIndex, 0)
-      await server.runProtocolPeriod()
-      assert.strictEqual(server.nextIndex, 1)
-    })
-
     it('runs protocol period for each peer and then shuffles peers', async () => {
-      const peersBefore = server.peerArr.slice(0)
+      const peersBefore = server.peers.slice(0)
 
-      for (let i = 0; i < numPeers; i++) {
-        assert.strictEqual(server.nextIndex, i)
-        assert.deepStrictEqual(server.peerArr, peersBefore)
+      for (let i = 0; i <= numPeers; i++) {
+        assert.deepStrictEqual(server.peers, peersBefore)
         await server.runProtocolPeriod()
       }
 
-      assert.strictEqual(server.nextIndex, 0)
-      assert.notDeepStrictEqual(server.peerArr, peersBefore)
+      assert.notDeepStrictEqual(server.peers, peersBefore)
     })
   })
 

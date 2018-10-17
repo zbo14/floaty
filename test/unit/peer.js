@@ -107,7 +107,9 @@ describe('peer', () => {
       assert.deepStrictEqual(msg, {
         command: 'ping-req',
         sender_id: 1,
+        target_address: '1.2.3.4',
         target_id: 5,
+        target_port: 9999,
         updates
       })
 
@@ -120,7 +122,9 @@ describe('peer', () => {
       assert.deepStrictEqual(msg, {
         command: 'ping-req',
         sender_id: 1,
+        target_address: '1.2.3.4',
         target_id: 5,
+        target_port: 9999,
         updates
       })
 
@@ -137,7 +141,9 @@ describe('peer', () => {
       assert.deepStrictEqual(msg, {
         command: 'ping-req',
         sender_id: 1,
+        target_address: '1.2.3.4',
         target_id: 5,
+        target_port: 9999,
         updates
       })
 
@@ -168,13 +174,13 @@ describe('peer', () => {
         assert.strictEqual(peer.status, 'alive')
       })
 
-      it('updates suspect peer when it hears state', () => {
-        peer.emit('state')
+      it('updates suspect peer when it hears event', () => {
+        peer.emit('event')
         assert.strictEqual(peer.status, 'alive')
       })
 
-      it('updates suspect peer when it hears state-req', () => {
-        peer.emit('state-req')
+      it('updates suspect peer when it hears event-req', () => {
+        peer.emit('event-req')
         assert.strictEqual(peer.status, 'alive')
       })
     })
@@ -199,13 +205,13 @@ describe('peer', () => {
         assert.strictEqual(peer.status, 'alive')
       })
 
-      it('updates faulty peer when it hears state', () => {
-        peer.emit('state')
+      it('updates suspect peer when it hears event', () => {
+        peer.emit('event')
         assert.strictEqual(peer.status, 'alive')
       })
 
-      it('updates faulty peer when it hears state-req', () => {
-        peer.emit('state-req')
+      it('updates suspect peer when it hears event-req', () => {
+        peer.emit('event-req')
         assert.strictEqual(peer.status, 'alive')
       })
     })
@@ -243,6 +249,25 @@ describe('peer', () => {
       await promise1
       peer.alive()
       await promise2
+      assert.strictEqual(peer.status, 'alive')
+    })
+  })
+
+  describe('#faulty()', () => {
+    beforeEach(() => {
+      peer.sequence = 1
+      peer.status = 'alive'
+    })
+
+    it('updates peer to faulty', () => {
+      peer.lastFaulty = 0
+      peer.faulty()
+      assert.strictEqual(peer.status, 'faulty')
+    })
+
+    it('fails to update peer to faulty', () => {
+      peer.lastFaulty = 1
+      peer.faulty()
       assert.strictEqual(peer.status, 'alive')
     })
   })
@@ -359,7 +384,7 @@ describe('peer', () => {
 
         it('handles alive update with higher sequence number', () => {
           peer.handleUpdate({ status: 'alive', sequence: 2 })
-          assert.strictEqual(peer.status, 'faulty')
+          assert.strictEqual(peer.status, 'alive')
           assert.strictEqual(peer.sequence, 2)
         })
       })
