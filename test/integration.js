@@ -2,96 +2,72 @@
 
 /* eslint-env mocha */
 
-const assert = require('assert')
 const { promisify } = require('util')
 const exec = promisify(require('child_process').exec)
+const init = require('../scripts/init')
 const Server = require('../lib/server')
-const peers = require('../nodes.json')
-  .map(peer => {
-    peer.address = '0.0.0.0'
-    return peer
-  })
 
+const id = 100
+const numNodes = 40
+const port = 22223
+const timeout = 80e3
+
+let peers
 let server
 
 describe('integration', () => {
   before(async function () {
-    this.timeout(10e3)
+    this.timeout(timeout)
+    await init({ numNodes, id, port })
     await exec('docker-compose up --build -d')
+    peers = require('../nodes')
   })
 
   after(async function () {
-    this.timeout(10e3)
+    this.timeout(timeout)
     await exec('docker-compose down && rm docker-compose.yml nodes.json')
   })
 
-  beforeEach(() => {
+  beforeEach(async () => {
     server = new Server({
       address: '0.0.0.0',
       port: 9000,
       id: 0
     })
 
-    server.setup(peers)
+    const myPeers = peers.map(peer => ({ ...peer, address: '0.0.0.0' }))
+
+    server.init(myPeers)
+
+    await server.openSocket()
   })
 
   afterEach(() => {
-    server.teardown()
-  })
-
-  it('requests state from random peer', async () => {
-    const peer = server.randomPeer()
-    const state = await server.requestState(peer.id)
-
-    assert.deepStrictEqual(state, [
-      {
-        id: 0,
-        status: 'alive',
-        sequence: 0
-      },
-      ...peers.map(({ id }) => ({
-        id,
-        status: 'alive',
-        sequence: 0
-      }))
-    ])
+    server.closeSocket()
   })
 
   it('stops a node', async () => {
-    await exec('docker-compose stop node1')
-  })
+    await exec('docker-compose stop node0')
+  }).timeout(timeout)
 
-  it('waits a bit', done => {
-    setTimeout(done, 15e3)
-  }).timeout(20e3)
+  it('waits for other peers to notice node is down', async () => {
+    await Promise.all(
+      peers.slice(1).map(({ id }) => {
+        return server.eventReq(id, '100:faulty', timeout)
+      })
+    )
+  }).timeout(timeout)
 
-  it('requests state from other peer and checks that node is down', async () => {
-    const state = await server.requestState(peers[2].id)
-    const peer = state.find(({ id }) => id === peers[1].id)
+  it('starts a node', async () => {
+    await exec('docker-compose start node0')
+  }).timeout(timeout)
 
-    assert.deepStrictEqual(peer, {
-      id: peers[1].id,
-      status: 'down',
-      sequence: 0
-    })
-  })
-
-  it('starts the node up again', async () => {
-    await exec('docker-compose start node1')
-  })
-
-  it('waits a bit', done => {
-    setTimeout(done, 15e3)
-  }).timeout(20e3)
-
-  it('requests state from another peer and checks that node is alive', async () => {
-    const state = await server.requestState(peers[3].id)
-    const peer = state.find(({ id }) => id === peers[1].id)
-
-    assert.deepStrictEqual(peer, {
-      id: peers[1].id,
-      status: 'alive',
-      sequence: 0
-    })
-  })
+  it('waits for other peers to notice node is alive', async () => {
+    await Promise.all([
+      ...peers.slice(1).map(({ id }) => {
+        return server.eventReq(id, '100:alive', timeout)
+      }),
+      exec('docker-compose start node0')
+    ])
+  }).timeout(timeout)
 })

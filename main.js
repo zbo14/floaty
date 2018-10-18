@@ -9,14 +9,11 @@ const run = async () => {
     address: '0.0.0.0'
   })
 
-  server.once('error', async err => {
-    console.error(err)
-    await server.stop()
-    server.teardown()
-    process.exit(1)
-  })
+  server.once('error', console.error)
 
-  await server.setup(nodes)
+  server.init(nodes)
+
+  await server.openSocket()
   await server.start()
 }
 
